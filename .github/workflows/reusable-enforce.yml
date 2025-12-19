@@ -1,0 +1,40 @@
+name: "Reusable Enforce Logic"
+
+on:
+  workflow_call: # <--- ISSO É O QUE O TORNA GLOBAL
+
+jobs:
+  validate-checklist:
+    name: Check Mandatory Items
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify Checkboxes
+        uses: actions/github-script@v6
+        with:
+          script: |
+            // Acessa o payload do evento que disparou o workflow no projeto filho
+            const { action } = context.payload;
+            const body = context.payload.pull_request.body || "";
+            
+            // 🛑 REGRA 1: Fail Fast no Push
+            if (action === 'synchronize') {
+               core.setFailed("❌ NOVO CÓDIGO DETECTADO: O Checklist foi invalidado. Aguarde o reset das caixas e marque-as novamente para liberar.");
+               return;
+            }
+
+            // 🛑 REGRA 2: Verifica existência do Checklist
+            const hasChecklist = body.includes("Checklist de Qualidade") || 
+                                 body.includes("- [ ]") || 
+                                 body.includes("- [x]");
+            
+            if (!hasChecklist) {
+              core.setFailed("❌ MERGE BLOQUEADO: O PR precisa conter o 'Checklist de Qualidade' na descrição.");
+              return;
+            }
+            
+            // 🛑 REGRA 3: Verifica caixas vazias
+            if (body.includes("- [ ]")) {
+              core.setFailed("❌ MERGE BLOQUEADO: Você precisa marcar todos os itens do 'Checklist de Qualidade'.");
+            } else {
+              console.log("✅ Checklist completo. Liberado!");
+            }
