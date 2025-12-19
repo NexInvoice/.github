@@ -1,0 +1,45 @@
+name: "Reusable Reset Logic"
+
+on:
+  workflow_call: # <--- GATILHO GLOBAL
+
+permissions:
+  pull-requests: write
+  issues: write
+
+jobs:
+  reset-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Uncheck boxes
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr = context.payload.pull_request;
+            const body = pr.body || "";
+
+            // Regex para encontrar caixas marcadas (x ou X)
+            const checkedBoxRegex = /- \[[xX]\]/g;
+
+            if (checkedBoxRegex.test(body)) {
+              console.log("⚠️ Código novo detectado com checklist marcado. Resetando...");
+
+              const newBody = body.replace(checkedBoxRegex, '- [ ]');
+
+              await github.rest.pulls.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr.number,
+                body: newBody
+              });
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                body: "🔄 **Checklist Resetado Automaticamente**\n\nNovos commits foram detectados. Para garantir a qualidade do código mais recente:\n\n1. O checklist foi limpo.\n2. O merge foi bloqueado.\n\n👉 **Por favor, revalide e marque novamente.**"
+              });
+            } else {
+              console.log("Nenhuma caixa marcada encontrada. Nada a fazer.");
+            }
